@@ -86,7 +86,7 @@
     font-entry
     (let ((stream (get-stream (get-font-file (get-page-font (current-page device) font-name)))))
       (file-position stream 0)
-      (let ((cff-font (type1:read-cff stream)))
+      (let ((cff-font (type1::read-cff stream)))
 	(push (cons font-name cff-font) (device-fonts device))
 	cff-font))))
 
@@ -206,7 +206,7 @@
 (defmethod op-move-to (operands (device vecto-output-device))
   (let ((x (get-number (first operands)))
 	(y (get-number (second operands))))
-    (vecto:move-to x y)))
+    (vecto::move-to x y)))
 
 ;; l
 (defmethod op-line-to (operands (device vecto-output-device))
@@ -597,20 +597,20 @@
 	 (y (aref tm 7)))
     (vecto:draw-string x y (vector (character-code->unicode-value font character-code)))))
 
-(defmethod show-character-code ((device vecto-output-device) (font-object type1:cff-font) character-code)
+(defmethod show-character-code ((device vecto-output-device) (font-object type1::cff-font) character-code)
   (let* ((font (text-font (current-graphics-state device)))
 	 (encoding (get-type1-encoding font))
 	 (character-name (character-code-name encoding character-code))
-	 (glyph (type1:make-glyph font-object character-name)))
+	 (glyph (type1::make-glyph font-object character-name)))
     (do-cff-glyph glyph device)))
 
-(defmethod type1:move-to ((device vecto-output-device) x y)
-  (vecto:move-to x y))
+(defmethod type1::move-to ((device vecto-output-device) x y)
+  (vecto::move-to x y))
 
-(defmethod type1:line-to ((device vecto-output-device) x y)
+(defmethod type1::line-to ((device vecto-output-device) x y)
   (vecto:line-to x y))
 
-(defmethod type1:curve-to ((device vecto-output-device) x1 y1 x2 y2 x3 y3)
+(defmethod type1::curve-to ((device vecto-output-device) x1 y1 x2 y2 x3 y3)
   (vecto:curve-to x1 y1 x2 y2 x3 y3))
 
 (defun do-cff-glyph (glyph device)
@@ -619,7 +619,7 @@
 	 (y (aref tm 7))
 	 (sx (aref tm 0))
 	 (sy (aref tm 4)))
-    (type1:with-glyph (glyph device)
+    (type1::with-glyph (glyph device)
       (vecto:with-graphics-state
 	(vecto::apply-matrix vecto::*graphics-state* (vector (/ sx 1000) 0 0 (/ sy 1000)  x y))
 	;(vecto:translate x y)
