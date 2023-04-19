@@ -23,9 +23,9 @@
     :accessor previous-matrix)
    (%text-line-matrix ; ???
     :accessor text-line-matrix)
-   (%cmaps
-    :initform '()
-    :accessor cmaps)))
+   (%to-unicode-maps
+    :initform (make-hash-table)
+    :accessor to-unicode-maps)))
 
 (defun make-text-output-device ()
   (make-instance 'text-output-device
@@ -82,8 +82,7 @@
 	 (translation (make-translation-matrix tx ty))
 	 (new-tm (m* (text-matrix device) translation)))
     (setf (text-matrix device) new-tm
-	  (text-line-matrix device) new-tm)
-    #+(or)(maybe-whitespace device)))
+	  (text-line-matrix device) new-tm)))
 
 ;; TD
 (defmethod op-text-move-set (operands (device text-output-device))
@@ -96,8 +95,7 @@
   (destructuring-bind (a b c d e f) (mapcar 'get-number operands)
     (let ((new (make-matrix (list a b 0 c d 0 e f 1))))
       (setf (text-matrix device) new
-	    (text-line-matrix device) new)
-      #+(or)(maybe-whitespace device))))
+	    (text-line-matrix device) new))))
 
 ;; T*
 (defmethod op-text-next-line (operands (device text-output-device))
@@ -113,14 +111,14 @@
     (maybe-whitespace device)
     (loop for character-code across (get-string (first operands))
 	  for w0 = (get-character-width font character-code)
-	  for char = (code-char (character-code->unicode-value font character-code)) ; FIXME
+	  for chars = (character-code->unicode-value device character-code)
 	  do
-	     (let* ((tx (* (+ (* w0 tfs) tc (if (char= #\Space char) tw 0)) th))
+	     (let* ((tx (* (+ (* w0 tfs) tc (if (= #!Space (aref chars 0)) tw 0)) th))
 		    (old (text-matrix device))
 		    (new (m* (make-matrix (list 1 0 0 0 1 0 tx 0 1)) old)))
 	       (setf (text-matrix device) new
 		     (previous-matrix device) new))
-	     (push char (text-output device)))))
+	     (loop for char across chars do (push (code-char char) (text-output device))))))
 
 ;; '
 (defmethod op-move-show-text (operands (device text-output-device))
@@ -143,8 +141,7 @@
 			   (- (/ (get-number operand) 1000))
 			   (horizontal-scaling (current-graphics-state device))))
 		    (new (m* (make-matrix (list 1 0 0 0 1 0 tx 0 1)) (text-matrix device))))
-	       (setf (text-matrix device) new)
-	       #+(or)(maybe-horizontal-whitespace device))))
+	       (setf (text-matrix device) new))))
 	       
 
 ;; q push gs on stack
@@ -158,18 +155,6 @@
 	  (m* (make-matrix (list a b 0 c d 0 e f 1))
 	      (ctm gs)))))
 
-(defun maybe-horizontal-whitespace (device)
-  (let* ((tm (text-matrix device))
-	 (m (m* tm (ctm (current-graphics-state device))))
-	 (prev (previous-matrix device))
-	 (dx (- (aref m 6) (aref prev 6))))
-    (setf (previous-matrix device) m)
-    (when (> dx 1)
-	(unless (and (text-output device)
-		     (white-space-p (first (text-output device))))
-	  (push #\Space (text-output device))))))
-
-;; FIXME - consecutive Tm's (for example) will not trigger new line even if collectively move by a line
 (defun maybe-whitespace (device)
   (let* ((tm (text-matrix device))
 	 (m (m* tm (ctm (current-graphics-state device))))

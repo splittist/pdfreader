@@ -31,7 +31,10 @@
     :accessor device-fonts)
    (%current-font
     :initform nil
-    :accessor current-font-object)))
+    :accessor current-font-object)
+   (%to-unicodes
+    :initform (make-hash-table)
+    :accessor to-unicode-maps)))
 
 (defun make-vecto-output-device (&optional (pixels-per-inch 300))
   (serapeum:lret ((obj (make-instance 'vecto-output-device :ppi pixels-per-inch)))))
@@ -157,7 +160,7 @@
 
 ;; w
 (defmethod op-set-line-width (operands (device vecto-output-device))
-  (let ((width (get-integer (first operands))))
+  (let ((width (get-number (first operands))))
     (setf (line-width (current-graphics-state device)) width)
     (vecto:set-line-width width))) ;; DEBUG * 3
 
@@ -184,7 +187,7 @@
 	(phase (get-number (second operands))))
     (setf (dash-pattern (current-graphics-state device))
 	  (cons vector phase))
-    (vecto:set-dash-pattern vector phase)))
+    (vecto:set-dash-pattern (map 'vector 'get-number vector) phase)))
 
 ;; ri
 (defmethod op-set-rendering-intent (operands (device vecto-output-device))
@@ -580,7 +583,7 @@
 	(th (horizontal-scaling (current-graphics-state device))))
     (loop for character-code across (get-string (first operands))
 	  for w0 = (/ (get-character-width font character-code) 1000) ;; DEBUG
-	  for char = (code-char (character-code->unicode-value font character-code)) ; FIXME
+	  for char = (code-char (aref (character-code->unicode-value device character-code) 0)) ; FIXME
 	  do
 	     (let* ((tx (* (+ (* w0 tfs) tc (if (char= #\Space char) tw 0)) th))
 		    (old (text-matrix device))
@@ -595,7 +598,10 @@
   (let* ((tm (text-matrix device))
 	 (x (aref tm 6))
 	 (y (aref tm 7)))
-    (vecto:draw-string x y (vector (character-code->unicode-value font character-code)))))
+    ;; Note: while vecto (and zpb-ttf) treats character-codes as characters, they really aren't,
+    ;; except in the special (if common) case of certain encodings. The 'characters' are turned back
+    ;; into character-codes for indexing into cmaps several layers later in zpb-ttf
+    (vecto:draw-string x y (string (code-char character-code)))))
 
 (defmethod show-character-code ((device vecto-output-device) (font-object type1:cff-font) character-code)
   (let* ((font (text-font (current-graphics-state device)))

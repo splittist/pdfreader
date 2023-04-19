@@ -4,6 +4,27 @@
 
 (named-readtables:in-readtable syntax)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun read-glyph-list ()
+    (with-open-file (s (asdf:system-relative-pathname "pdfreader" "glyphlist.txt"))
+      (loop with map = (make-hash-table :test 'equalp)
+	    for line = (read-line s nil :eof)
+	    until (eq :eof line)
+	    unless (char= #\# (char line 0))
+	      do (let* ((semi (position #\; line))
+			(name (subseq line 0 semi))
+			(octets (latin1-octets name))
+			(code-text (subseq line (1+ semi)))
+			(code-tokens (serapeum:tokens code-text))
+			(code-result '()))
+		   (setf (gethash octets map)
+			 (dolist (token code-tokens (coerce (nreverse code-result) 'vector))
+			   (push (parse-integer token :radix 16) code-result))))
+	    finally (return map)))))
+
+(defparameter +adobe-glyph-list+
+  (read-glyph-list))
+
 (defparameter +mac-roman-encoding+
   #(nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil
     nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil

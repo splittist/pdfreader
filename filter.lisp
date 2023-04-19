@@ -206,15 +206,31 @@
 	 (base-vector (make-array length :element-type 'octet))
 	 (read-length (read-sequence base-vector base-stream)))
     (unless (eql length read-length) (error "Flate decode read error"))
-    (setf (vector-stream-vector obj) (semz.decompress:decompress :deflate base-vector :start 2)
+    (setf (vector-stream-vector obj) (try-flate-decode base-vector)
 	  (vector-stream-index obj) 0
 	  (vector-stream-end obj) (length (vector-stream-vector obj)))))
 
+(defun try-flate-decode (vector)
+  (cond ((= #x78 (aref vector 0))
+	 (semz.decompress:decompress :zlib vector))
+	((= #x9C (aref vector 0)) ;; The second byte of a zlib header? (default compression)
+	 (semz.decompress:decompress :deflate vector :start 1))
+	(t
+	 (semz.decompress:decompress :deflate vector))))
+  ;; (let ((start
+  ;; 	  (cond ((and (= (aref vector 0) #!x)
+  ;; 		      (= (aref vector 1) #!String-Terminator))
+  ;; 		 2)
+  ;; 		((= (aref vector 0) #!String-Terminator)
+  ;; 		 1)
+  ;; 		(t 0))))
+  ;;   (semz.decompress:decompress :deflate vector :start start)))
+    
 (defmethod decode ((string string) (filter flate-decode))
   (decode (latin1-octets string) filter))
 
 (defmethod decode ((vector vector) (filter flate-decode))
-  (semz.decompress:decompress :deflate vector :start 2))
+  (try-flate-decode vector))
 
 ;;; run-length-decode
 

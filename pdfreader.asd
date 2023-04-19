@@ -24,6 +24,7 @@
 	       (:file "lexer")
 	       (:file "filter")
 	       (:file "encoding")
+	       (:file "cmap")
 	       (:file "font")
 	       (:file "graphics-state")
 	       (:file "content")
