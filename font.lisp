@@ -396,11 +396,16 @@
   (get-dict #"Subtype" font-stream))
 
 (defun get-character-width (font character-code)
-  (let ((first-char (get-integer (get-dict #"FirstChar" font)))
-	(last-char (get-integer (get-dict #"LastChar" font)))
-	(widths (ensure-object (get-dict #"Widths" font))))
-    (assert (<= first-char character-code last-char))
-    (get-integer (get-array widths (- character-code first-char)))))
+  (if (simple-font-p font)
+      (let ((first-char (get-integer (get-dict #"FirstChar" font)))
+	    (last-char (get-integer (get-dict #"LastChar" font)))
+	    (widths (ensure-object (get-dict #"Widths" font))))
+	(assert (<= first-char character-code last-char))
+	(get-integer (get-array widths (- character-code first-char))))
+      (let* ((descendant (get-array (get-font-descendant-fonts font) 0))
+	     (widths (get-font-w-dict descendant))
+	     (default (get-font-dw descendant)))
+	(gethash character-code widths default))))
 
 ;; single name can give multiple unicode code-points
 (defgeneric unicode-from-map (map character-code))
@@ -410,6 +415,9 @@
 
 (defmethod unicode-from-map ((encoding pdf-name) character-code)
   (gethash (character-code-name encoding character-code) +adobe-glyph-list+))
+
+(defun simple-font-p (font)
+  (not (nameql #"Type0" (get-font-subtype font))))
 
 ;; FIXME 9.10.2
 (defun character-code->unicode-value (device character-code)
@@ -429,5 +437,83 @@
 				(setf (gethash font (to-unicode-maps device)) encoding)
 				(unicode-from-map encoding character-code))
 			       ((typep encoding 'pdf-dictionary)
-				(error "TBI"))))))))))))
+				(error "TrueType encoding dictionaries TBI"))
+			       (t (error "Unknown TrueType Encoding: ~A" encoding)))))
+		      ((or (nameql #"Type1" subtype) (nameql #"MMType1" subtype))
+		       (let ((encoding (get-font-encoding font)))
+			 (cond ((typep encoding 'pdf-name)
+				(setf (gethash font (to-unicode-maps device)) encoding)
+				(unicode-from-map encoding character-code))
+			       ((typep encoding 'pdf-dictionary)
+				(error "Type1 encoding dictionaries TBI"))
+			       (t (error "Unknown Type1 Encoding: ~A" encoding)))))
+		      ;; FIXME ??
+		      ((nameql #"Type0" subtype)
+		       (let* ((encoding (get-font-encoding font))
+			      (descendant-font (get-array (get-font-descendant-fonts font) 0))
+			      (descendant-subtype (get-font-subtype descendant-font))
+			      (descendant-encoding (get-font-cid-to-gid-map descendant-font)))
+			 (if (and (nameql #"CIDFontType2" descendant-subtype)
+				  (typep encoding 'pdf-name)
+				  (or (nameql #"Identity-H" encoding) (nameql #"Identity-V" encoding))
+				  (typep descendant-encoding 'pdf-name)
+				  (nameql #"Identity" descendant-encoding))
+			     character-code
+			     (error "Type0 font encoding (other than simplest) TBI"))))
+		      ((nameql #"Type3" subtype)
+		       (error "Type3 font encoding TBI"))
+		      ((or (nameql #"CIDFontType0" subtype) (nameql #"CIDFontType2" subtype))
+		       (error "CID Font encoding TBI"))
+		      (t (error "Unknown Font SubType: ~A" subtype)))))))))
 
+(defclass text-iterator ()
+  ((%font
+    :initarg :font
+    :reader text-iterator-font)
+   (%string
+    :initarg :string
+    :reader text-iterator-string)
+   (%index
+    :initform 0
+    :accessor text-iterator-index)
+   (%function
+    :accessor text-iterator-function)))
+
+(defun make-text-iterator (font string)
+  (serapeum:lret ((iterator (make-instance 'text-iterator :font font :string string)))
+    (if (simple-font-p font)
+	(setf (text-iterator-function iterator) #'%next-byte)
+	(let* ((encoding (get-font-encoding font))
+	       (descendant-font (get-array (get-font-descendant-fonts font) 0))
+	       (descendant-subtype (get-font-subtype descendant-font))
+	       (descendant-encoding (get-font-cid-to-gid-map descendant-font)))
+	  (if (and (nameql #"CIDFontType2" descendant-subtype)
+		   (typep encoding 'pdf-name)
+		   (or (nameql #"Identity-H" encoding) (nameql #"Identity-V" encoding))
+		   (typep descendant-encoding 'pdf-name)
+		   (nameql #"Identity" descendant-encoding))
+	      (setf (text-iterator-function iterator) #'%next-two-bytes)
+	      (error "Type0 font encoding (other than simplest) TBI"))))))
+
+(defun %next-byte (text-iterator)
+  (with-accessors ((index text-iterator-index)
+		   (string text-iterator-string))
+      text-iterator
+    (if (< index (length string))
+	(prog1 (aref string index)
+	  (incf index))
+	nil)))
+
+(defun %next-two-bytes (text-iterator)
+  (with-accessors ((index text-iterator-index)
+		   (string text-iterator-string))
+      text-iterator
+    (if (< index (length string))
+	(let ((first (aref string index))
+	      (second (aref string (1+ index))))
+	  (prog1 (+ (ash first 8) second)
+	    (incf index 2)))
+	nil)))
+
+(defun next-character-code (text-iterator)
+  (funcall (text-iterator-function text-iterator) text-iterator))

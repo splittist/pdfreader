@@ -2,6 +2,8 @@
 
 (in-package #:com.splittist.pdfreader)
 
+(named-readtables:in-readtable syntax)
+
 ;;;# TEXT-OUTPUT-DEVICE
 
 (defclass text-output-device (output-device)
@@ -109,9 +111,15 @@
 	(tw (word-spacing (current-graphics-state device)))
 	(th (horizontal-scaling (current-graphics-state device))))
     (maybe-whitespace device)
-    (loop for character-code across (get-string (first operands))
+    ;; FIXME TODO - If the font is a CID font, then we may have to
+    ;; extract bytes from the first operand by twos, or even by ones, twos, threes and fours
+    ;; depending on the CID to GID map
+    (loop with iterator = (make-text-iterator font (get-string (first operands)))
+					;for character-code across (get-string (first operands))
+	  for character-code = (next-character-code iterator)
+	  while character-code
 	  for w0 = (get-character-width font character-code)
-	  for chars = (character-code->unicode-value device character-code)
+ 	  for chars = (character-code->unicode-value device character-code)
 	  do
 	     (let* ((tx (* (+ (* w0 tfs) tc (if (= #!Space (aref chars 0)) tw 0)) th))
 		    (old (text-matrix device))
@@ -142,7 +150,6 @@
 			   (horizontal-scaling (current-graphics-state device))))
 		    (new (m* (make-matrix (list 1 0 0 0 1 0 tx 0 1)) (text-matrix device))))
 	       (setf (text-matrix device) new))))
-	       
 
 ;; q push gs on stack
 
@@ -185,8 +192,6 @@
 	finally (unless (null operands)
 		  (warn "Unused operands in contents stream: ~A" (nreverse operands)))
 		(return nil)))
-
-(named-readtables:in-readtable syntax)
 
 (defun get-page-stream (page)
   (get-stream (ensure-object (get-dict #"Contents" (ensure-object page)))))

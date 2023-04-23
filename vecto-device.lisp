@@ -530,7 +530,7 @@
 	 (translation (make-translation-matrix tx ty))
 	 (new-tm (m* (text-line-matrix device) translation)))
     (setf (text-matrix device) new-tm
-	  (text-line-matrix device) new-tm)))
+	  (text-line-matrix device) (copy-seq new-tm))))
 
 ;; TD
 (defmethod op-text-move-set (operands (device vecto-output-device))
@@ -543,7 +543,7 @@
   (destructuring-bind (a b c d e f) (mapcar 'get-number operands)
     (let ((new (make-matrix (list a b 0 c d 0 e f 1)))) ;; DEBUG
       (setf (text-matrix device) new
-	    (text-line-matrix device) new))))
+	    (text-line-matrix device) (copy-seq new)))))
 
 ;; T*
 (defmethod op-text-next-line (operands (device vecto-output-device))
@@ -573,7 +573,7 @@
 			   (horizontal-scaling (current-graphics-state device))))
 		    (new (m* (make-matrix (list 1 0 0 0 1 0 tx 0 1)) (text-matrix device))))
 	       (setf (text-matrix device) new))))
-	       
+
 ;; Tj
 (defmethod op-show-text (operands (device vecto-output-device))
   (let ((font (text-font (current-graphics-state device)))
@@ -581,6 +581,9 @@
 	(tc (character-spacing (current-graphics-state device)))
 	(tw (word-spacing (current-graphics-state device)))
 	(th (horizontal-scaling (current-graphics-state device))))
+    ;; FIXME TODO - If the font is a CID font, then we may have to
+    ;; extract bytes from the first operand by twos, or even by ones, twos, threes and fours
+    ;; depending on the CID to GID map
     (loop for character-code across (get-string (first operands))
 	  for w0 = (/ (get-character-width font character-code) 1000) ;; DEBUG
 	  for char = (code-char (aref (character-code->unicode-value device character-code) 0)) ; FIXME
@@ -598,7 +601,7 @@
   (let* ((tm (text-matrix device))
 	 (x (aref tm 6))
 	 (y (aref tm 7)))
-    ;; Note: while vecto (and zpb-ttf) treats character-codes as characters, they really aren't,
+    ;; Note: while vecto (and zpb-ttf) treat(s) character-codes as characters, they really aren't,
     ;; except in the special (if common) case of certain encodings. The 'characters' are turned back
     ;; into character-codes for indexing into cmaps several layers later in zpb-ttf
     (vecto:draw-string x y (string (code-char character-code)))))
@@ -632,3 +635,4 @@
 	;(vecto:scale 0.01 0.01)
 	(map nil 'funcall (type1::glyph-code-vector glyph))
 	(vecto:fill-path)))))
+ 

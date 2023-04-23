@@ -298,19 +298,8 @@
       object)))
 
 (defun read-indirect-object-content-from-stream (stream-number stream-index)
-  (print stream-number)
-  (print stream-index) ;; DEBUG
-  (let* ((object-stream (ensure-object (read-indirect-object stream-number 0)))
-	 (debug (print object-stream)) ;; DEBUG
-	 (first (get-integer (get-dict #"First" object-stream)))
-	 (n (get-integer (get-dict #"N" object-stream)))
-	 (*pdf-stream* (get-stream object-stream)))
-    (file-position *pdf-stream* 0)
-    (let ((pairs (loop repeat N collecting (cons (get-integer (read-object))
-						 (get-integer (read-object))))))
-      (print pairs) ;; DEBUG
-      (file-position *pdf-stream* (+ first (serapeum:assocdr stream-index pairs))))
-      (read-object)))
+  (let ((object-stream (ensure-object (read-indirect-object stream-number 0))))
+    (nth stream-index object-stream)))
 
 (defun read-object-stream (object-stream)
   (let* ((first (get-integer (get-dict #"First" object-stream)))
@@ -331,7 +320,7 @@
 	    for index from 0
 	    for object = (read-object)
 	    do (make-indirect-object number 0 object index)
-	    collect (cons number object)))))
+	    collect object))))
 
 ;;;# XREF
 
@@ -420,6 +409,7 @@
 		     (1 ; uncompressed - field2-value = position; field3-value = generation number
 		      (make-indirect-object object-number field3-value :uncompressed field2-value))
 		     (2 ; compressed - field2-value = object-stream object number; field3-value = index within stream
+		      (pushnew field2-value (document-object-streams *document*)) ;; FIXME DEBUG
 		      (make-indirect-object object-number field2-value :compressed field3-value)))))))
     (make-instance 'pdf-dictionary :value (pdf-object-value xref-stream))))
 
@@ -451,6 +441,9 @@
    (%objects
     :initarg :objects
     :accessor document-objects)
+   (%object-streams
+    :initform '()
+    :accessor document-object-streams)
    (%pages
     :initarg :pages
     :accessor document-pages)))
@@ -469,11 +462,19 @@
 	(collect-pages kid vector))
       (vector-push-extend page vector)))
 
+(defun load-object-streams ()
+  (let ((result '()))
+    (dolist (object-number (document-object-streams *document*))
+      (push (cons object-number (ensure-object (read-indirect-object object-number 0)))
+	    result))
+    (setf (document-object-streams *document*) result)))
+
 (defun read-pdf ()
   (let ((trailer (read-xref (find-startxref))))
     (setf (document-trailer *document*) trailer)
+    (load-object-streams)
     (load-all-indirect-objects)
-    (let ((root-node (ensure-object (get-dict #"Pages" (ensure-object (get-dict #"Root" trailer)))))
+    (let ((root-node (get-dict #"Pages" (get-dict #"Root" trailer)))
 	  (vector (serapeum:vect)))
       (collect-pages root-node vector)
       (setf (document-pages *document*) vector))))

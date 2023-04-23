@@ -300,7 +300,7 @@
     (pdf-stream
      (let ((type (get-dict #"Type" thing)))
        (if (and type (nameql #"ObjStm" type))
-	   (progn (print "ensure-object pdf-stream") #+(or)(break) (read-object-stream thing))
+	   (progn #+(or)(print "ensure-object pdf-stream") #+(or)(break) (read-object-stream* thing))
 	   thing)))
     (otherwise
      thing)))
