@@ -3,7 +3,7 @@
 (defsystem #:pdfreader
   :description "A PDF reader"
   :author "John Q. Splittist <splittist@splittist.com>"
-  :license "MIT"
+  :license "GPL"
   :version "0.0.1"
   ;;:in-order-to ((asdf:test-op (asdf:test-op :cl-pdf-reader-test)))
   :depends-on (#:alexandria
