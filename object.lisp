@@ -135,7 +135,7 @@
 
 (defgeneric get-array (array index)
   (:method ((array pdf-array) index)
-    (nth index (pdf-object-value array))))
+    (ensure-object (nth index (pdf-object-value array)))))
 
 (defgeneric get-vector (object)
   (:method ((object pdf-array))
