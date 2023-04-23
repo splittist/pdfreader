@@ -190,6 +190,52 @@
 (defun get-font-subtype (font)
   (get-dict #"Subtype" font))
 
+(defun get-font-cid-to-gid-map (font)
+  (get-dict #"CIDToGIDMap" font))
+
+(defun get-font-cid-system-info (font)
+  (get-dict #"CIDSystemInfo" font))
+
+(defun get-font-cid-system-info-registry (font)
+  (get-dict2 font #"CIDSystemInfo" #"Registry"))
+
+(defun get-font-cid-system-info-ordering (font)
+  (get-dict2 font #"CIDSystemInfo" #"Ordering"))
+
+(defun get-font-cid-system-info-supplement (font)
+  (get-dict2 font #"CIDSystemInfo" #"Supplement"))
+
+(defun get-font-dw (font)
+  (or (get-dict #"DW" font)
+      1000))
+
+(defun get-font-w (font)
+  (get-dict #"W" font))
+
+(defun get-font-w-dict (font)
+  (let ((w-list (pdf-object-value (get-font-w font)))
+	(dict (make-hash-table)))
+    (loop for index below (length w-list)
+	  for item = (nth index w-list)
+	  for next = (nth (1+ index) w-list)
+	  if (and (typep item 'pdf-number) (typep next 'pdf-array))
+	    do (loop for key from (get-number item)
+		     for value in (pdf-object-value next)
+		     do (setf (gethash key dict) (get-number value)))
+	       (incf index)
+	  else
+	    do (let ((width (get-number (nth (+ index 2) w-list))))
+		 (loop for key from (get-number item) upto (get-number next)
+		       do (setf (gethash key dict) width))
+		 (incf index 2)))
+    dict))
+
+(defun get-font-dw2 (font)
+  (get-dict #"DW2" font))
+
+(defun get-font-w2 (font)
+  (get-dict #"W2" font))
+
 ;; obsolete
 #+(or)(defun get-font-name (font)
   (get-dict #"Name" font))
