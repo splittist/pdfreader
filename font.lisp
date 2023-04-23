@@ -187,6 +187,10 @@
 (defun get-font-descendant-fonts (font)
   (get-dict #"DescendantFonts" font))
 
+(defun get-font-descendant-font (font)
+  (alexandria:when-let ((descendants (get-font-descendant-fonts font)))
+    (get-array descendants 0)))
+
 (defun get-font-subtype (font)
   (get-dict #"Subtype" font))
 
@@ -361,10 +365,12 @@
       0))
 
 (defun get-font-file (font)
-  (alexandria:when-let ((fd (get-dict #"FontDescriptor" font)))
-    (or (get-dict #"FontFile" fd) ; FIXME - only ask for possible ones?
-	(get-dict #"FontFile2" fd)
-	(get-dict #"FontFile3" fd))))
+  (if (simple-font-p font)
+      (alexandria:when-let ((fd (get-dict #"FontDescriptor" font)))
+	(or (get-dict #"FontFile" fd) ; FIXME - only ask for possible ones?
+	    (get-dict #"FontFile2" fd)
+	    (get-dict #"FontFile3" fd)))
+      (get-font-file (get-font-descendant-font font))))
 
 ;; deprecated in PDF 2.0
 (defun get-font-char-set (font)
@@ -404,7 +410,7 @@
 	(get-integer (get-array widths (- character-code first-char))))
       (let* ((descendant (get-array (get-font-descendant-fonts font) 0))
 	     (widths (get-font-w-dict descendant))
-	     (default (get-font-dw descendant)))
+	     (default (get-number (get-font-dw descendant))))
 	(gethash character-code widths default))))
 
 ;; single name can give multiple unicode code-points

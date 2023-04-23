@@ -76,9 +76,7 @@
 (defun get-truetype-font-loader (device font-name)
   (alexandria:if-let ((font-entry (find-font-object device font-name)))
     font-entry
-    (let ((stream (get-stream (get-dict #"FontFile2"
-					(get-font-descriptor
-					 (get-page-font (current-page device) font-name))))))
+    (let ((stream (get-stream (get-font-file (get-page-font (current-page device) font-name)))))
       (file-position stream 0)
       (let ((font-loader (zpb-ttf:open-font-loader stream)))
 	(push (cons font-name font-loader) (device-fonts device))
@@ -500,6 +498,21 @@
 	     (setf (text-font (current-graphics-state device)) font
 		   (text-font-size (current-graphics-state device)) font-size
 		   (current-font-object device) cff-font)))
+	  ((nameql #"Type0" font-subtype)
+	   (let ((descendant (get-font-descendant-font font)))
+	     (cond ((nameql #"CIDFontType2" (get-font-subtype descendant))
+		    (let ((font-loader (get-truetype-font-loader device name)))
+		      (setf (text-font (current-graphics-state device)) font
+			    (text-font-size (current-graphics-state device)) font-size
+			    (current-font-object device) font-loader)
+		      (vecto:set-font font-loader font-size)))
+		   ((nameql #"CIDFontType0" (get-font-subtype descendant))
+		    (let ((cff-font (get-cff-font device name)))
+		      (setf (text-font (current-graphics-state device)) font
+			    (text-font-size (current-graphics-state device)) font-size
+			    (current-font-object device) cff-font)))
+		   (t
+		    (error "Unknown Descendant Font Type: ~A" (get-font-subtype descendant))))))
 	  (t
 	   (error "Unsupported font type: ~A" (octets-latin1 (pdf-object-value font-subtype)))))))
 
@@ -584,11 +597,13 @@
     ;; FIXME TODO - If the font is a CID font, then we may have to
     ;; extract bytes from the first operand by twos, or even by ones, twos, threes and fours
     ;; depending on the CID to GID map
-    (loop for character-code across (get-string (first operands))
+    (loop with iterator = (make-text-iterator font (get-string (first operands)))
+	  for character-code = (next-character-code iterator)
+	  while character-code
 	  for w0 = (/ (get-character-width font character-code) 1000) ;; DEBUG
-	  for char = (code-char (aref (character-code->unicode-value device character-code) 0)) ; FIXME
+	  ;;for chars = (character-code->unicode-value device character-code)
 	  do
-	     (let* ((tx (* (+ (* w0 tfs) tc (if (char= #\Space char) tw 0)) th))
+	     (let* ((tx (* (+ (* w0 tfs) tc (if (= #!Space character-code) tw 0)) th)) ;; FIXME ?
 		    (old (text-matrix device))
 		    (new (m* (make-matrix (list 1 0 0 0 1 0 tx 0 1)) old)))
 	       (show-character-code device (current-font-object device) character-code)
@@ -604,7 +619,10 @@
     ;; Note: while vecto (and zpb-ttf) treat(s) character-codes as characters, they really aren't,
     ;; except in the special (if common) case of certain encodings. The 'characters' are turned back
     ;; into character-codes for indexing into cmaps several layers later in zpb-ttf
-    (vecto:draw-string x y (string (code-char character-code)))))
+    ;; DEBUG
+    (if (simple-font-p (text-font (current-graphics-state device)))
+	(vecto:draw-string x y (string (code-char character-code)))
+	(vecto:draw-character x y character-code))))
 
 (defmethod show-character-code ((device vecto-output-device) (font-object type1:cff-font) character-code)
   (let* ((font (text-font (current-graphics-state device)))
@@ -635,4 +653,5 @@
 	;(vecto:scale 0.01 0.01)
 	(map nil 'funcall (type1::glyph-code-vector glyph))
 	(vecto:fill-path)))))
+ 
  

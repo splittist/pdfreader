@@ -30,4 +30,5 @@
 	       (:file "content")
 	       (:file "device")
 	       (:file "text-device")
+	       (:file "vecto-fix")
 	       (:file "vecto-device")))

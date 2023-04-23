@@ -118,7 +118,7 @@
 					;for character-code across (get-string (first operands))
 	  for character-code = (next-character-code iterator)
 	  while character-code
-	  for w0 = (get-character-width font character-code)
+	  for w0 = (/ (get-character-width font character-code) 1000) ;; DEBUG
  	  for chars = (character-code->unicode-value device character-code)
 	  do
 	     (let* ((tx (* (+ (* w0 tfs) tc (if (= #!Space (aref chars 0)) tw 0)) th))
