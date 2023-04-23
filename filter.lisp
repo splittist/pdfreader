@@ -216,15 +216,10 @@
 	((= #x9C (aref vector 0)) ;; The second byte of a zlib header? (default compression)
 	 (semz.decompress:decompress :deflate vector :start 1))
 	(t
-	 (semz.decompress:decompress :deflate vector))))
-  ;; (let ((start
-  ;; 	  (cond ((and (= (aref vector 0) #!x)
-  ;; 		      (= (aref vector 1) #!String-Terminator))
-  ;; 		 2)
-  ;; 		((= (aref vector 0) #!String-Terminator)
-  ;; 		 1)
-  ;; 		(t 0))))
-  ;;   (semz.decompress:decompress :deflate vector :start start)))
+	 (handler-case
+	     (semz.decompress:decompress :deflate vector) ;; FIXME still just guessing
+	   (semz.decompress:decompression-error ()
+	     (semz.decompress:decompress :deflate vector :start 2))))))
     
 (defmethod decode ((string string) (filter flate-decode))
   (decode (latin1-octets string) filter))
