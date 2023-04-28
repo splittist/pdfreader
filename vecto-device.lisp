@@ -41,10 +41,10 @@
 
 (defmethod render-page (page (device vecto-output-device))
   (let* ((user-unit (get-page-user-unit page))
-	 (media-box (get-page-media-box page)) ;; FIXME crop box
+	 (crop-box (get-page-crop-box page)) ;; FIXME crop box
 	 (ppi (pixels-per-inch device))
-	 (height (round (* (/ (get-number (get-array media-box 3)) (* 72 user-unit)) ppi)))
-	 (width (round (* (/ (get-number (get-array media-box 2)) (* 72 user-unit)) ppi)))
+	 (height (round (* (/ (get-number (get-array crop-box 3)) (* 72 user-unit)) ppi)))
+	 (width (round (* (/ (get-number (get-array crop-box 2)) (* 72 user-unit)) ppi)))
 	 (ctm (vector 25/6 0 0 0 25/6 0 0 0 1))) ;; FIXME
     (setf (current-page device) (ensure-object page)
 	  (ctm (current-graphics-state device)) ctm ;; DEBUG

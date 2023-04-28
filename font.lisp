@@ -53,13 +53,34 @@
       nil)))
 
 (defun get-page-media-box (page)
-  (alexandria:if-let ((result (get-dict #"MediaBox" (ensure-object page))))
+ (alexandria:if-let ((result (get-dict #"MediaBox" (ensure-object page))))
     result
     (alexandria:if-let ((parent (get-page-parent page)))
       (get-page-media-box parent)
       nil)))
 
-;; CropBox, BleedBox, TrimBox, ArtBox, BoxColorInfo
+(defun get-page-crop-box (page)
+  (or (alexandria:if-let ((result (get-dict #"CropBox" (ensure-object page))))
+	result
+	(alexandria:if-let ((parent (get-page-parent page)))
+	  (get-page-crop-box parent)
+	  nil))
+      (get-page-media-box page)))
+
+(defun get-page-bleed-box (page)
+  (or (get-dict #"BleedBox" (ensure-object page))
+      (get-page-crop-box page)))
+
+(defun get-page-trim-box (page)
+  (or (get-dict #"TrimBox" (ensure-object page))
+      (get-page-crop-box page)))
+
+(defun get-page-art-box (page)
+  (or (get-dict #"ArtBox" (ensure-object page))
+      (get-page-crop-box page)))
+
+(defun get-page-box-color-info (page)
+  (get-dict #"BoxColorInfo" (ensure-object page)))
 
 (defun get-page-rotate (page)
   (or (alexandria:if-let ((result (get-dict #"Rotate" (ensure-object page))))
