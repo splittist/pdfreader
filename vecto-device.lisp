@@ -541,7 +541,8 @@
   (let* ((tx (get-number (first operands)))
 	 (ty (get-number (second operands)))
 	 (translation (make-translation-matrix tx ty))
-	 (new-tm (m* (text-line-matrix device) translation)))
+	 (new-tm (m* translation (text-line-matrix device))))
+    #+(or)(debug-line oldx oldy newx newy) ;; DEBUG
     (setf (text-matrix device) new-tm
 	  (text-line-matrix device) (copy-seq new-tm))))
 
@@ -584,8 +585,10 @@
 	  do (let* ((tx (* (text-font-size (current-graphics-state device))
 			   (- (/ (get-number operand) 1000))
 			   (horizontal-scaling (current-graphics-state device))))
-		    (new (m* (make-matrix (list 1 0 0 0 1 0 tx 0 1)) (text-matrix device))))
-	       (setf (text-matrix device) new))))
+		    (new (m* (make-matrix (list 1 0 0 0 1 0 tx 0 1))
+			     (text-matrix device))))
+	       (setf (text-matrix device) new)
+	       #+(or)(setf (text-line-matrix device) new)))) ;; XXX DEBUG XXX
 
 ;; Tj
 (defmethod op-show-text (operands (device vecto-output-device))
@@ -649,9 +652,13 @@
     (type1:with-glyph (glyph device)
       (vecto:with-graphics-state
 	(vecto::apply-matrix vecto::*graphics-state* (vector (/ sx 1000) 0 0 (/ sy 1000)  x y))
-	;(vecto:translate x y)
-	;(vecto:scale 0.01 0.01)
 	(map nil 'funcall (type1::glyph-code-vector glyph))
 	(vecto:fill-path)))))
  
- 
+#+(or)(defun debug-line (x1 y1 x2 y2)
+  (vecto:with-graphics-state
+    (vecto:set-rgb-stroke 1.0 0.0 0.0)
+    (vecto:set-line-width 1)
+    (vecto:move-to x1 y1)
+    (vecto:line-to x2 y2)
+    (vecto:stroke)))
