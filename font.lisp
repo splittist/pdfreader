@@ -90,7 +90,7 @@
 	  nil))
       0))
 
-(defun get-pgae-group (page)
+(defun get-page-group (page)
   (get-dict #"Group" (ensure-object page)))
 
 (defun get-page-thumb (page)
