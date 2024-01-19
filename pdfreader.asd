@@ -22,13 +22,31 @@
 	       (:file "utils")
 	       (:file "object")
 	       (:file "lexer")
+	       (:file "document")
 	       (:file "filter")
 	       (:file "encoding")
 	       (:file "cmap")
+	       (:file "page")
 	       (:file "font")
 	       (:file "graphics-state")
 	       (:file "content")
 	       (:file "device")
 	       (:file "text-device")
 	       (:file "vecto-fix")
-	       (:file "vecto-device")))
+	       (:file "vecto-device"))
+  :in-order-to ((test-op (test-op #:pdfreader/test))))
+
+(defsystem #:pdfreader/test
+  :depends-on (#:pdfreader
+	       #:parachute
+	       )
+  :components ((:module "test"
+		:components ((:file "package")
+			     (:file "all")
+			     (:file "utils")
+			     (:file "object")
+			     (:file "lexer")
+			     (:file "document"))
+		))
+  :perform (test-op (operation component)
+		    (uiop:symbol-call '#:parachute '#:test '#:all)))

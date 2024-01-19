@@ -124,7 +124,9 @@
 	    else if (and octal
 			 (digit-octet-p char 8))
 		   do (cond ((= 2 octal-count)
-			     (write-octet (logand (+ (ash octal 3) (digit-octet-p char 8)) #o377))
+			     (write-octet (logand (+ (ash octal 3)
+						     (digit-octet-p char 8))
+						  #o377))
 			     (setf octal nil
 				   octal-count 0))
 			    (t
@@ -134,7 +136,8 @@
 			   (case char
 			     ((#!Newline #!Return #!Linefeed)
 			      (when (and (= #!Return char)
-					 (eql #!Linefeed (peek-byte *pdf-stream* nil nil)))
+					 (eql #!Linefeed
+					      (peek-byte *pdf-stream* nil nil)))
 				(read-byte *pdf-stream*)))
 			     (#!n
 			      (write-octet #!LF))
@@ -163,11 +166,12 @@
 				   octal-count 0))
 			   (case char
 			     (40 (incf parens)) ; ( stupid emacs
-			     (41 (when (zerop parens) (loop-finish)) (decf parens))) ; ) stupid emacs
+			     (41 (when (zerop parens) (loop-finish))
+			      (decf parens))) ; ) stupid emacs
 			   (write-octet char)))
 	    finally (when octal
 		      (write-octet (logand octal #o377))))
-      (make-instance 'pdf-string :value out))))
+      (make-pdf-string out))))
 
 (defun read-hexadecimal-string (&optional <-eaten)
   (unless <-eaten
@@ -180,13 +184,15 @@
 	    do (cond ((not (digit-octet-p char 16))
 		      (error "Wrong thing to be a hexdigit: ~C" (code-char char)))
 		     (prev
-		      (vector-push-extend (+ (ash prev 4) (digit-octet-p char 16)) octets)
+		      (vector-push-extend (+ (ash prev 4)
+					     (digit-octet-p char 16))
+					  octets)
 		      (setf prev nil))
 		     (t
 		      (setf prev (digit-octet-p char 16))))
 	  finally (when prev
 		    (vector-push-extend (ash prev 4) octets)))
-    (make-instance 'pdf-string :value octets)))
+    (make-pdf-string octets)))
 
 (defun read-keyword ()
   (let ((octets (make-array 0 :element-type 'octet :adjustable t :fill-pointer 0)))
@@ -202,7 +208,7 @@
 	  ((octets= #"null" octets)
 	   +null+)
 	  (t
-	   (make-instance 'pdf-keyword :value octets)))))
+	   (make-pdf-keyword octets)))))
 
 (defun read-number-or-keyword ()
   (let ((octets (serapeum:vect)))
@@ -214,7 +220,7 @@
     (let ((start (if (find (aref octets 0) #"+-") 1 0)))
       (if (and (<= (count #!. (subseq octets start)) 1)
 	       (every 'digit-octet-p (remove #!. (subseq octets start))))
-	  (make-instance 'pdf-number :value (read-from-string (octets-latin1 octets)))
+	  (make-pdf-number (read-from-string (octets-latin1 octets)))
 	  (with-input-from-octet-vector (*pdf-stream* octets)
 	    (read-keyword))))))
 
@@ -233,7 +239,7 @@
 	       (push (fetch-indirect-object object generation) stack)))
 	    (t
 	     (push (read-object) stack))))
-    (make-instance 'pdf-array :value (nreverse stack))))
+    (make-pdf-array (nreverse stack))))
 
 (defun read-dictionary-properties ()
   (eat-char #!<)
@@ -263,13 +269,15 @@
 	     (eat-char #!Linefeed)
 	     (read-pdf-stream properties))
 	    (t
-	     (make-instance 'pdf-dictionary :value properties))))))
+	     (make-pdf-dictionary properties))))))
 
 (defun read-dictionary ()
-  (make-instance 'pdf-dictionary :value (read-dictionary-properties)))
+  (make-pdf-dictionary (read-dictionary-properties)))
 
 (defun read-pdf-stream (properties)
-  (let ((length-object (serapeum:assocdr #"Length" properties :key 'pdf-object-value :test 'octets=)))
+  (let ((length-object
+	  (serapeum:assocdr #"Length" properties
+			    :key 'pdf-object-value :test 'octets=)))
     (when (typep length-object 'indirect-object)
       (let ((position (file-position *pdf-stream*)))
 	(setf length-object (content (load-indirect-object length-object)))
@@ -281,200 +289,5 @@
 	(error "Unexpected end of file in content stream"))
       (skip-white-space-and-comments)
       (eat-chars #"endstream")
-      (make-instance 'pdf-stream :value properties :content content))))
+      (make-pdf-stream properties content))))
       
-(defun read-indirect-object-content (position)
-  (file-position *pdf-stream* position)
-  (let* ((object-number (get-integer (read-object)))
-	 (generation-number (get-integer (read-object))))
-    (declare (ignorable object-number generation-number))
-    (skip-white-space-and-comments)
-    (eat-chars #"obj")
-    (let ((object (read-object)))
-      (skip-white-space-and-comments)
-      ;; lenient on missing "endobj" per cl-pdf-parser
-      (when (= #!e (peek-byte *pdf-stream*))
-	(eat-chars #"endobj"))
-      object)))
-
-(defun read-indirect-object-content-from-stream (stream-number stream-index)
-  (let ((object-stream (ensure-object (read-indirect-object stream-number 0))))
-    (nth stream-index object-stream)))
-
-(defun read-object-stream (object-stream)
-  (let* ((first (get-integer (get-dict #"First" object-stream)))
-	 #+(or)(n (get-integer (get-dict #"First" object-stream)))
-	 (*pdf-stream* (get-stream object-stream)))
-    (file-position *pdf-stream* first)
-    (read-object)))
-
-(defun read-object-stream* (object-stream)
-  (let* ((first (get-integer (get-dict #"First" object-stream)))
-	 (n (get-integer (get-dict #"N" object-stream)))
-	 (*pdf-stream* (get-stream object-stream)))
-    (file-position *pdf-stream* 0)
-    (let ((pairs (loop repeat n collecting (cons (get-integer (read-object))
-						 (get-integer (read-object))))))
-      (file-position *pdf-stream* first)
-      (loop for (number . offset) in pairs
-	    for index from 0
-	    for object = (read-object)
-	    do (make-indirect-object number 0 object index)
-	    collect object))))
-
-;;;# XREF
-
-(defconstant +xref-search-size+ 1024
-  "Number of bytes at the end of the stream in which to look for 'startxref'")
-
-(defun find-startxref ()
-  (let ((length (stream-length *pdf-stream*))
-	(buffer (make-array +xref-search-size+ :element-type 'octet)))
-    (file-position *pdf-stream* (- length +xref-search-size+))
-    (read-sequence buffer *pdf-stream*)
-    (let ((position (search #"startxref" buffer :from-end t)))
-      (unless position (error "Can't find file trailer"))
-      (parse-integer (octets-latin1 (subseq buffer (+ position 10) (min +xref-search-size+ (+ position 50))))
-		     :junk-allowed t))))
-
-(defun read-trailer ()
-  (skip-white-space-and-comments)
-  (eat-chars #"trailer")
-  (skip-white-space-and-comments)
-  (eat-char #!<)
-  (read-dictionary))
-
-(defun read-cross-reference-entry (number)
-  (let ((position (get-integer (read-object))))
-    (skip-white-space-and-comments)
-    (let ((generation (get-integer (read-object))))
-      (skip-white-space-and-comments)
-      (let ((type (read-byte *pdf-stream*)))
-	(skip-white-space-and-comments)
-	(when (= #!n type)
-	  (make-indirect-object number generation :uncompressed position))))))
-
-(defun read-cross-reference-subsection ()
-  (let ((first (get-integer (read-object)))
-	(n (get-integer (read-object))))
-    (loop repeat n
-	  for number from first
-	  do (read-cross-reference-entry number))))
-
-(defun read-cross-reference-subsections (position)
-  (file-position *pdf-stream* position)
-  (eat-chars #"xref")
-  (loop for _ = (skip-white-space-and-comments)
-	for char = (peek-byte *pdf-stream*)
-	until (= #!t char)
-	do (read-cross-reference-subsection)))
-
-(defun read-xref-table (position)
-  (let ((first-trailer nil))
-    (loop (read-cross-reference-subsections position)
-	  (let ((trailer (read-trailer)))
-	    (unless first-trailer (setf first-trailer trailer))
-	    (let ((prev (get-dict #"Prev" trailer)))
-	      (if prev
-		  (setf position (get-integer prev))
-		  (return first-trailer)))))))
-
-(defun read-int-bytes (stream count)
-  (loop for j downfrom (1- count) to 0
-	summing (ash (read-byte stream) (* j 8))))
-
-(defun read-xref-stream (position)
-  (let* ((xref-stream (read-indirect-object-content position))
-	 (size (get-integer (get-dict #"Size" xref-stream)))
-	 (w (get-dict #"W" xref-stream)))
-    (assert (and (typep w 'pdf-array)
-		 (= 3 (get-length w))))
-    (let* ((field1 (get-integer (get-array w 0)))
-	   (field2 (get-integer (get-array w 1)))
-	   (field3 (get-integer (get-array w 2))))
-      (let ((s (get-stream xref-stream)))
-	(loop for object-number below size
-	      do (let ((type 0)
-		       (field2-value 0)
-		       (field3-value 0))
-		   (setf type
-		       (if (= 0 field1)
-			   1
-			   (read-int-bytes s field1)))
-		   (setf field2-value (read-int-bytes s field2))
-		   (setf field3-value (read-int-bytes s field3))
-		   (ecase type
-		     (0 ; free - field2-value = next free object number; field3-value = next generation number
-		      #+(or)(make-indirect-object number field2-value :free field3-value))
-		     (1 ; uncompressed - field2-value = position; field3-value = generation number
-		      (make-indirect-object object-number field3-value :uncompressed field2-value))
-		     (2 ; compressed - field2-value = object-stream object number; field3-value = index within stream
-		      (pushnew field2-value (document-object-streams *document*)) ;; FIXME DEBUG
-		      (make-indirect-object object-number field2-value :compressed field3-value)))))))
-    (make-instance 'pdf-dictionary :value (pdf-object-value xref-stream))))
-
-(defun read-xref (position)
-  (file-position *pdf-stream* position)
-  (let ((char (peek-byte *pdf-stream* t)))
-    (if (= #!x char)
-	(read-xref-table position)
-	(read-xref-stream position))))
-
-;;;# DOCUMENT
-
-;; go through xrefs storing position corresponding to (obj gen) pair
-;; when an objstrm is referenced, store that
-;; when looking up where to find object content, check objstrm list
-;; when retrieving content, cache it
-;; when dereferencing indirect object, check cache first
-;; do we store 'cache' in indirect object itself? can we use :content as :type?
-;; if it's :uncompressed or :compressed then must not be retrieved
-;; do we store document in object?
-
-(defclass document ()
-  ((%trailer
-    :initarg :root
-    :accessor document-trailer)
-   (%indirect-objects
-    :initform (make-hash-table :test 'equal)
-    :accessor indirect-objects)
-   (%objects
-    :initarg :objects
-    :accessor document-objects)
-   (%object-streams
-    :initform '()
-    :accessor document-object-streams)
-   (%pages
-    :initarg :pages
-    :accessor document-pages)))
-
-(defparameter *document* nil)
-
-(defun read-pdf-file (pathname)
-  (let ((*document* (make-instance 'document)))
-    (with-input-from-octet-file (*pdf-stream* pathname)
-      (read-pdf))
-    *document*))
-
-(defun collect-pages (page vector)
-  (if (nameql #"Pages" (get-dict #"Type" (ensure-object page)))
-      (dolist (kid (pdf-object-value (get-dict #"Kids" (ensure-object page))))
-	(collect-pages kid vector))
-      (vector-push-extend page vector)))
-
-(defun load-object-streams ()
-  (let ((result '()))
-    (dolist (object-number (document-object-streams *document*))
-      (push (cons object-number (ensure-object (read-indirect-object object-number 0)))
-	    result))
-    (setf (document-object-streams *document*) result)))
-
-(defun read-pdf ()
-  (let ((trailer (read-xref (find-startxref))))
-    (setf (document-trailer *document*) trailer)
-    (load-object-streams)
-    (load-all-indirect-objects)
-    (let ((root-node (get-dict #"Pages" (get-dict #"Root" trailer)))
-	  (vector (serapeum:vect)))
-      (collect-pages root-node vector)
-      (setf (document-pages *document*) vector))))

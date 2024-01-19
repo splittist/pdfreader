@@ -27,6 +27,9 @@
 (defclass pdf-keyword (pdf-value-object)
   ())
 
+(defun make-pdf-keyword (value)
+  (make-instance 'pdf-keyword :value value))
+
 (defmethod print-object ((object pdf-keyword) stream)
   (if (not *print-escape*)
       (princ (octets-latin1 (pdf-object-value object)) stream)
@@ -46,6 +49,9 @@
 
 (defclass pdf-number (pdf-value-object)
   ())
+
+(defun make-pdf-number (value)
+  (make-instance 'pdf-number :value value))
 
 (defun get-number (object)
   (setf object (ensure-object object))
@@ -68,6 +74,9 @@
 
 (defclass pdf-string (pdf-value-object)
   ())
+
+(defun make-pdf-string (value)
+  (make-instance 'pdf-string :value value))
 
 (defmethod print-object ((object pdf-string) stream)
   (if (not *print-escape*)
@@ -127,6 +136,9 @@
 (defclass pdf-array (pdf-value-object)
   ())
 
+(defun make-pdf-array (values)
+  (make-instance 'pdf-array :value values))
+
 (defmethod print-object ((object pdf-array) stream)
   (if (not *print-escape*)
       (format stream "[~S]" (pdf-object-value object))
@@ -135,6 +147,8 @@
 
 (defgeneric get-array (array index)
   (:method ((array pdf-array) index)
+    (assert (< index (length (pdf-object-value array)))
+	    (index) "Index out of range: ~S" index)
     (ensure-object (nth index (pdf-object-value array)))))
 
 (defgeneric get-vector (object)
@@ -148,6 +162,9 @@
 
 (defclass pdf-dictionary (pdf-value-object)
   ())
+
+(defun make-pdf-dictionary (values)
+  (make-instance 'pdf-dictionary :value values))
 
 (defmethod print-object ((object pdf-dictionary) stream)
   (if (not *print-escape*)
@@ -166,7 +183,7 @@
 	  value))))
 
 ;; doesn't really work for non-pdf-value keys
-(defgeneric (setf get-dict) (value key dictionary) ; FIXME multiple evaluation?
+#+(or) (defgeneric (setf get-dict) (value key dictionary) ; FIXME multiple evaluation?
   (:method ((value pdf-object) (key pdf-object) (dictionary pdf-dictionary))
     (let ((pair (nth-value 1 (get-dict key dictionary))))
       (if pair
@@ -183,8 +200,11 @@
     :accessor pdf-stream-stream
     :initform nil)))
 
+(defun make-pdf-stream (properties content)
+  (make-instance 'pdf-stream :value properties :content content))
+
 (defgeneric get-stream (object)
-  (:method ((pdf-stream pdf-stream))
+  (:method ((pdf-stream pdf-dictionary)) ;; DEBUG
     (alexandria:if-let ((s (pdf-stream-stream pdf-stream)))
       s
       (let ((stream (make-octet-vector-stream (pdf-stream-content pdf-stream)))
@@ -208,30 +228,27 @@
 		 (setf stream (make-filter stream filter p)))))))
 	(setf (pdf-stream-stream pdf-stream) stream)))))
 
-;;;# OBJECT-STREAM
+;;;## PDF-OBJECT-STREAM
 
-(defclass object-stream ()
-  ((%number
-    :initarg :number
-    :accessor object-stream-number)
-   (%objects
-    :initarg :objects
-    :accessor object-stream-dict
-    :initform nil)))
+(defclass pdf-object-stream (pdf-stream)
+  ((%object-dict
+    :initarg :object-dict
+    :accessor pdf-object-stream-object-dict)))
 
-(defun make-object-stream (number objects)
-  (make-instance 'object-stream :number number :objects objects))
+ 
+;; (defun make-object-stream (number objects)
+;;   (make-instance 'object-stream :number number :objects objects))
 
-(defun get-object-stream (object-stream index)
-  (cdr (nth index (object-stream-dict object-stream))))
+;; (defun get-object-stream (object-stream index)
+;;   (cdr (nth index (object-stream-dict object-stream))))
 
-(defmethod print-object ((object object-stream) stream)
-  (print-unreadable-object (object stream :type t :identity t)
-    (format stream "~D (~D)"
-	    (object-stream-number object)
-	    (length (object-stream-dict object)))))
+;; (defmethod print-object ((object object-stream) stream)
+;;   (print-unreadable-object (object stream :type t :identity t)
+;;     (format stream "~D (~D)"
+;; 	    (object-stream-number object)
+;; 	    (length (object-stream-dict object)))))
 
-;;;# INDIRECT-OBJECT
+;;;## INDIRECT-OBJECT
 
 (defclass indirect-object (pdf-object)
   ((%number
@@ -256,21 +273,31 @@
 		""))))
 
 (defun make-indirect-object (object-number generation-number type position)
-  (serapeum:lret ((object (or (car (gethash (cons object-number generation-number) (indirect-objects *document*)))
+  (serapeum:lret ((object (or (car (gethash
+				    #+(or)(cons object-number generation-number)
+				    object-number ;; DEBUG
+				    (indirect-objects *document*)))
 			      (make-instance 'indirect-object
 					     :number object-number
 					     :generation generation-number
 					     :content type))))
-    (setf (gethash (cons object-number generation-number) (indirect-objects *document*))
+    (setf (gethash
+	   #+(or)(cons object-number generation-number)
+	   object-number ;; DEBUG
+	   (indirect-objects *document*))
 	  (cons object position))))
 
 (defun fetch-indirect-object (object-number generation-number)
-  (alexandria:if-let ((object.pos (gethash (cons object-number generation-number) (indirect-objects *document*))))
+  (alexandria:if-let ((object.pos (gethash
+				   #+(or)(cons object-number generation-number)
+				   object-number ;; DEBUG
+				   (indirect-objects *document*))))
     (values (car object.pos) (cdr object.pos))
     (make-indirect-object object-number generation-number :uncompressed 0))) ; FIXME
 
 (defun read-indirect-object (object-number generation-number)
-  (multiple-value-bind (object position) (fetch-indirect-object object-number generation-number)
+  (multiple-value-bind (object position)
+      (fetch-indirect-object object-number generation-number)
     (when (keywordp (content object))
       (if (eq :uncompressed (content object))
 	  (setf (content object) (read-indirect-object-content position))
@@ -289,7 +316,7 @@
     (load-indirect-object (car object.pos))))
 
 ;; unused?
-(defun delete-indirect-object (object)
+#+(or)(defun delete-indirect-object (object)
   (remhash (cons (object-number object) (generation-number object)) (indirect-objects *document*)))
 
 (defun ensure-object (thing)
@@ -297,10 +324,8 @@
     (indirect-object
       ;;(content thing)
      (ensure-object (content (load-indirect-object thing))))
-    (pdf-stream
-     (let ((type (get-dict #"Type" thing)))
-       (if (and type (nameql #"ObjStm" type))
-	   (progn #+(or)(print "ensure-object pdf-stream") #+(or)(break) (read-object-stream* thing))
-	   thing)))
+    (pdf-object-stream
+     (progn #+(or)(print "ensure-object pdf-stream") #+(or)(break)
+	    (read-object-stream* thing)))
     (otherwise
      thing)))
