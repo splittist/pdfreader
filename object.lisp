@@ -141,7 +141,7 @@
 
 (defmethod print-object ((object pdf-array) stream)
   (if (not *print-escape*)
-      (format stream "[~S]" (pdf-object-value object))
+      (format stream "[~A]" (pdf-object-value object))
       (print-unreadable-object (object stream :type t :identity t)
 	(format stream "~D items" (length (pdf-object-value object))))))
 
@@ -168,7 +168,7 @@
 
 (defmethod print-object ((object pdf-dictionary) stream)
   (if (not *print-escape*)
-      (format stream "<<~S>>" (pdf-object-value object))
+      (format stream "<<~A>>" (pdf-object-value object))
       (print-unreadable-object (object stream :type t :identity t)
 	(format stream "~D items" (length (pdf-object-value object))))))
 
