@@ -76,20 +76,38 @@
 (defun get-truetype-font-loader (device font-name)
   (alexandria:if-let ((font-entry (find-font-object device font-name)))
     font-entry
-    (let ((stream (get-stream (get-font-file (get-page-font (current-page device) font-name)))))
-      (file-position stream 0)
-      (let ((font-loader (zpb-ttf:open-font-loader stream)))
-	(push (cons font-name font-loader) (device-fonts device))
-	font-loader))))
+    (let ((font-file (get-font-file (get-page-font (current-page device) font-name))))
+      (if font-file
+	(let ((stream (get-stream font-file)))
+	  (file-position stream 0)
+	  (let ((font-loader (zpb-ttf:open-font-loader stream)))
+	    (push (cons font-name font-loader) (device-fonts device))
+	    font-loader))
+	(get-external-font device font-name)))))
 
 (defun get-cff-font (device font-name)
   (alexandria:if-let ((font-entry (find-font-object device font-name)))
     font-entry
-    (let ((stream (get-stream (get-font-file (get-page-font (current-page device) font-name)))))
-      (file-position stream 0)
-      (let ((cff-font (type1:read-cff stream)))
-	(push (cons font-name cff-font) (device-fonts device))
-	cff-font))))
+    (let ((font-file (get-font-file (get-page-font (current-page device) font-name))))
+      (if font-file
+	  (let ((stream (get-stream font-file)))
+	    (file-position stream 0)
+	    (let ((cff-font (type1:read-cff stream)))
+	      (push (cons font-name cff-font) (device-fonts device))
+	      cff-font))
+	  (get-external-font device font-name)))))
+
+(defun get-external-font (device font-name)
+  (let ((name (get-font-name (get-page-font (current-page device) font-name))))
+    (alexandria:if-let ((standard-name (standard-14-font-p name)))
+      (let ((ttf (first (standard-14-font-equivalent standard-name))))
+	(when (null ttf)
+	  (error "Can't find .ttf file for standard font ~A. Implement type1."
+		 standard-name))
+	(let ((font-loader (zpb-ttf:open-font-loader ttf)))
+	  (push (cons font-name font-loader) (device-fonts device))
+	  font-loader))
+      (error "Don't know how to find external font ~A." name))))
 
 (defun pdf-vecto-color (color-space color)
   (serapeum:case-using 'nameql color-space
@@ -98,7 +116,7 @@
     (#"DeviceRGB"
      (list (colored:r color) (colored:g color) (colored:b color)))
     (#"DeviceCMYK"
-     (let ((rgb (cmyk-rgb color)))
+      (let ((rgb (cmyk-rgb color)))
        (list (colored:r rgb) (colored:g rgb) (colored:b rgb))))
     (otherwise
      (warn "Dont' support color-space ~A" color-space))))

@@ -4,24 +4,67 @@
 
 (named-readtables:in-readtable syntax)
 
-#+(or)(defparameter *standard-14-names*
-  '("Times-Roman"
-    "Helvetica"
-    "Courier"
-    "Symbol"
+(defparameter *standard-14*
+  '(("Times-Roman" "TimesNewRomanPSMT" "TimesNewRoman" "TimesNewRomanPS")
+    ("Times-Bold" "TimesNewRomanPS-BoldMT" "TimesNewRoman,Bold" "TimesNewRomanPS-Bold" "TimesNewRoman-Bold")
+    ("Times-Italic" "TimesNewRomanPS-ItalicMT" "TimesNewRoman,Italic" "TimesNewRomanPS-Italic" "TimesNewRoman-Italic")
+    ("Times-BoldItalic" "TimesNewRomanPS-BoldItalicMT" "TimesNewRoman,BoldItalic" "TimesNewRomanPS-BoldItalic" "TimesNewRoman-BoldItalic")
+    
+    ("Helvetica" "ArialMT" "Arial")
+    ("Helvetica-Bold" "Arial-BoldMT" "Arial,Bold" "Arial-Bold" "Helvetica,Bold") 
+    ("Helvetica-Oblique" "Arial-ItalicMT" "Arial,Italic" "Arial-Italic" "Helvetica,Italic" "Helvetica-Italic")
+    ("Helvetica-BoldOblique" "Arial-BoldItalicMT" "Arial,BoldItalic" "Arial-BoldItalic" "Helvetica,BoldItalic" "Helvetica-BoldItalic")
+    
+    ("Courier" "CourierNew" "CourierNewPSMT")
+    ("Courier-Bold" "CourierNew,Bold" "Courier,Bold" "CourierNewPS-BoldMT" "CourierNew-Bold")
+    ("Courier-Oblique" "CourierNew,Italic" "Courier,Italic" "CourierNewPS-ItalicMT" "CourierNew-Italic")
+    ("Courier-BoldOblique" "CourierNew,BoldItalic" "Courier,BoldItalic" "CourierNewPS-BoldItalicMT" "CourierNew-BoldItalic")
+    
+    ("Symbol" "Symbol,Italic" "Symbol,Bold" "Symbol,BoldItalic" "SymbolMT" "SymbolMT,Italic" "SymbolMT,Bold" "SymbolMT,BoldItalic")
+    
+    ("ZapfDingbats")))
 
-    "Times-Bold"
-    "Helvetica-Bold"
-    "Courier-Bold"
-    "ZapfDingbats"
+(defun standard-14-font-p (font-name)
+  (let ((string-name (octets-latin1 (pdf-object-value font-name))))
+    (dolist (list *standard-14*)
+      (when (find string-name list :test 'string=) ;; FIXME string-equal better?
+	(return (first list))))))
 
-    "Times-Italic"
-    "Helvetica-Oblique"
-    "Courier-Oblique"
+(defparameter *standard-14-font-equivalents*
+  '(("Times-Roman" . "NimbusRoman-Regular")
+    ("Times-Bold" . "NimbusRoman-Bold")
+    ("Times-Italic" . "NimbusRoman-Italic")
+    ("Times-BoldItalic" . "NimbusRoman-BoldItalic")
 
-    "Times-BoldItalic"
-    "Helvetica-BoldOblique"
-    "Courier-BoldOblique"))
+    ("Helvetica" . "NimbusSans-Regular")
+    ("Helvetica-Bold". "NimbusSans-Bold")
+    ("Helvetica-Oblique" . "NimbusSans-Italic")
+    ("Helvetica-BoldOblique" . "NimbusSans-BoldItalic")
+
+    ("Courier" . "NimbusMonoPS-Regular")
+    ("Courier-Bold" . "NimbusMonoPS-Bold")
+    ("Courier-Oblique" . "NimbusMonoPS-Italic")
+    ("Courier-BoldOblique" . "NimbusMonoPS-BoldItalic")
+
+    ("Symbol" . "StandardSymbolsPS")
+
+    ("ZapfDingbats" . "D050000L")))
+
+(defparameter *standard-14-font-equivalent-path*
+  #+(or)#P"/usr/share/fonts/type1/urw-base35/"
+  #P"/mnt/c/Users/David/Downloads/urw-base35-fonts-20200910/fonts/")
+
+(defun standard-14-font-equivalent (standard-name)
+  (let* ((file-name (serapeum:assocdr standard-name
+				      *standard-14-font-equivalents*
+				      :test #'string=))
+	 (path-name (merge-pathnames file-name *standard-14-font-equivalent-path*))
+	 (ttf-name (merge-pathnames path-name #P"*.ttf"))
+	 (otf-name (merge-pathnames path-name #P"*.otf"))
+	 (t1-name (merge-pathnames path-name #P"*.t1")))
+    (list (probe-file ttf-name)
+	  (probe-file otf-name)
+	  (probe-file t1-name))))
 
 (defun get-document-fonts (document)
   (let ((result '()))
