@@ -12,7 +12,7 @@
     ("LZWDecode" lzw-decode "Predictor" "Colors" "BitsPerComponent" "Columns" "EarlyChange")
     ("FlateDecode" flate-decode "Predictor" "Colors" "BitsPerComponent" "Columns")
     ("RunLengthDecode" run-length-decode)
-    ("CCITTFaxDecode" ccit-fax-decode "K" "EndOfLine" "EncodedByteAlign" "Columns" "Rows" "EndOfBlock" "BlackIs1" "DamagedRowsBeforeError")
+    ("CCITTFaxDecode" ccitt-fax-decode "K" "EndOfLine" "EncodedByteAlign" "Columns" "Rows" "EndOfBlock" "BlackIs1" "DamagedRowsBeforeError")
     ("JBIG2Decode" jbig2-decode "JBIG2Globals")
     ("DCTDecode" dct-decode "ColorTransform")
     ("JPXDecode" jpx-decode)
@@ -265,6 +265,7 @@
 ;;; /EndOfBlock (boolean, default true)
 ;;; /BlackIs1 (boolean, default false)
 ;;; /DamagedRowsBeforeError (integer, default 0)
+
 
 ;;; jbig2-decode - parameters
 ;;; /JBIG2Globals (stream)
