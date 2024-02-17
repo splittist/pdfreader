@@ -29,7 +29,12 @@
       (error "Wrong character. Expected '~C' and got '~C'" (code-char expected) (code-char char)))))
 
 (defun eat-chars (expected)
-  (loop for char across expected do (eat-char char)))
+  (loop for char across expected
+	for count from 1
+	do (handler-bind
+	       ((error (lambda (condition)
+			 (error "Error '~A' at index ~D in '~A'" condition count (octets-latin1 expected)))))
+	     (eat-char char))))
 
 (defun skip-white-space-and-comments (&optional eof-error-p)
   (loop for char = (peek-byte *pdf-stream* t eof-error-p)
@@ -288,6 +293,19 @@
       (when (< read length)
 	(error "Unexpected end of file in content stream"))
       (skip-white-space-and-comments)
-      (eat-chars #"endstream")
+      ;;(eat-chars #"endstream")
+      (check-for-endstream content)
       (make-pdf-stream properties content))))
-      
+
+;; Sometimes the length of a stream is incorrect, so we eat the 'e' in
+;; 'endstream'. This is a kludge to correct for that.
+;; FIXME a better way? What about writers that omit 'endstream' altogether
+;;  and go straight to 'endobj'?
+(defun check-for-endstream (content)
+  (case (peek-byte *pdf-stream*)
+    (#!n (when (= #!e (aref content (1- (length content))))
+	   (eat-chars #"ndstream")
+	   (setf (aref content (1- (length content))) #!Space)))
+    (#!e (eat-chars #"endstream"))
+    (t (error "Expecting 'endstream'"))))
+     
