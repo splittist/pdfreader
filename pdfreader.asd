@@ -25,6 +25,7 @@
 	       (:file "document")
 	       (:file "filter")
 	       (:file "encoding")
+	       (:file "ccitt")
 	       (:file "cmap")
 	       (:file "page")
 	       (:file "font")
