@@ -129,7 +129,7 @@
   (get-dict #"DPart" (ensure-object page)))
 
 
-
+;; FIXME ensure-object not required?
 (defun get-page-external-graphics-states (page)
   (ensure-object (get-dict #"ExtGState" (get-page-resources page))))
 
@@ -141,3 +141,37 @@
 
 (defun get-page-font (page font-name)
   (ensure-object (get-dict font-name (get-page-fonts page))))
+
+(defun get-page-color-spaces (page)
+  (get-dict #"ColorSpace" (get-page-resources page)))
+
+(defun get-page-color-space (page color-space-name)
+  (get-dict color-space-name (get-page-color-spaces page)))
+
+(defun get-page-patterns (page)
+  (get-dict #"Pattern" (get-page-resources page)))
+
+(defun get-page-pattern (page pattern-name)
+  (get-dict pattern-name (get-page-patterns page)))
+
+(defun get-page-shadings (page)
+  (get-dict #"Shading" (get-page-resources page)))
+
+(defun get-page-shading (page shading-name)
+  (get-dict shading-name (get-page-shadings page)))
+
+(defun get-page-xobjects (page)
+  (get-dict #"XObject" (get-page-resources page)))
+
+(defun get-page-xobject (page xobject-name)
+  (get-dict xobject-name (get-page-xobjects page)))
+
+(defun get-page-procset (page)
+  (get-dict #"ProcSet" (get-page-resources page)))
+
+(defun get-page-properties (page)
+  (get-dict #"Properties" (get-page-resources page)))
+
+(defun get-page-property (page property-name)
+  (get-dict property-name (get-page-properties page)))
+
